@@ -1,29 +1,42 @@
 """
 Level 0 - Root Level
 
-This is the ROOT level of your TACO hierarchy. Each sample here becomes a
+{% if cookiecutter.max_levels|int == 0 %}This is the ROOT and LEAF level of your TACO hierarchy. Each sample here is a FILE
+(the actual data), not a FOLDER containing more samples.
+
+Structure:
+- level0 (root, FILES)
+- level0 samples are FILEs with actual data (GeoTIFF, PNG, bytes, etc.)
+{% else %}This is the ROOT level of your TACO hierarchy. Each sample here becomes a
 top-level entry in your dataset.
 
 Structure:
 - level0 samples are FOLDERs that contain level1 tortillas
 - level1 → level2 → ... → level{{ cookiecutter.max_levels }} (leaves are FILEs)
+{% endif %}
 
 How to use:
-1. Copy build_sample_example() and rename it (e.g., build_sample_tile_001)
+{% if cookiecutter.max_levels|int == 0 %}1. Copy build_sample_example() and rename it (e.g., build_sample_file_001)
+2. Implement your logic to create/load the actual file data
+3. Return Sample with path pointing to file data (bytes, Path, or file object)
+4. Add the function to the SAMPLES list
+5. Repeat for all files in your dataset
+{% else %}1. Copy build_sample_example() and rename it (e.g., build_sample_tile_001)
 2. Implement your logic to build the child tortilla from level1
 3. Add the function to the SAMPLES list
 4. Repeat for all root samples in your dataset
+{% endif %}
 
 Note:
     level0 can be built in parallel (controlled by LEVEL0_PARALLEL in config.py).
-    All other levels (level1-N) are always sequential to avoid nested parallelism.
-"""
+{% if cookiecutter.max_levels|int > 0 %}    All other levels (level1-N) are always sequential to avoid nested parallelism.
+{% endif %}"""
 
 from concurrent.futures import ProcessPoolExecutor
 from tacotoolbox.datamodel import Sample, Tortilla
 from tqdm import tqdm
 from dataset.config import LEVEL0_PARALLEL, LEVEL0_SAMPLE_LIMIT, WORKERS
-from dataset.levels import level1
+{% if cookiecutter.max_levels|int > 0 %}from dataset.levels import level1{% endif %}
 
 # =============================================================================
 # TORTILLA PARAMETERS
@@ -43,16 +56,23 @@ STRICT_SCHEMA = True
 # =============================================================================
 # SAMPLE BUILDERS - TODO: IMPLEMENT YOUR SAMPLES HERE
 # =============================================================================
-# Each function builds ONE root sample.
+{% if cookiecutter.max_levels|int == 0 %}# Each function builds ONE FILE sample.
+# Copy, rename, and modify build_sample_example() for each file in your dataset.
+{% else %}# Each function builds ONE root sample.
 # Copy, rename, and modify build_sample_example() for each sample in your dataset.
+{% endif %}
 
 
 def build_sample_example() -> Sample:
     """TODO: Rename and implement this function for your first sample."""
-    child_tortilla = level1.build()
+{% if cookiecutter.max_levels|int == 0 %}    # Example: Create in-memory data
+    data = b"test_data"
+    
+    sample = Sample(id="example", path=data)
+{% else %}    child_tortilla = level1.build()
     
     sample = Sample(id="example", path=child_tortilla)
-    
+{% endif %}    
     # =========================================================================
     # ADD YOUR SAMPLE-LEVEL EXTENSIONS HERE
     # =========================================================================
@@ -67,14 +87,23 @@ def build_sample_example() -> Sample:
     #       geotransform=(0, 1, 0, 0, 0, -1),
     #       time_start=1609459200
     #   ))
+{% if cookiecutter.max_levels|int == 0 %}    #
+    #   from extensions.scaling import Scaling
+    #   sample.extend_with(Scaling(
+    #       scale_factor=0.0001,
+    #       scale_offset=0.0
+    #   ))
     #
+    #   from extensions.geotiff_stats import GeotiffStats
+    #   sample.extend_with(GeotiffStats(categorical=False))
+{% else %}    #
     #   from extensions.istac import ISTAC
     #   sample.extend_with(ISTAC(
     #       crs="EPSG:4326",
     #       geometry=wkb_bytes,
     #       time_start=1609459200
     #   ))
-    #
+{% endif %}    #
     #   from extensions.split import Split
     #   sample.extend_with(Split(split="train"))
     #

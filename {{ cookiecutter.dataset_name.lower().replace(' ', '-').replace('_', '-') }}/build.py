@@ -30,6 +30,7 @@ def clean_previous_outputs(output: str):
     - FOLDER: output/
     - TacoCat: __TACOCAT__ (fixed name in parent directory)
     - TACOLLECTION: TACOLLECTION.json (in parent directory)
+    - Docs: index.html, README.md (in parent directory)
     """
     output_path = Path(output)
     parent_dir = output_path.parent
@@ -84,10 +85,42 @@ def clean_previous_outputs(output: str):
         tacollection_path.unlink()
         removed.append(str(tacollection_path))
 
+    # Documentation files
+    for doc_file in ["index.html", "README.md"]:
+        doc_path = parent_dir / doc_file
+        if doc_path.exists() and doc_path.is_file():
+            doc_path.unlink()
+            removed.append(str(doc_path))
+
     if removed:
         print(f"Cleaned {len(removed)} previous output(s):")
         for item in removed:
             print(f"  - {item}")
+
+
+def generate_documentation(output: str, config: dict):
+    """Generate HTML and Markdown documentation."""
+    from tacotoolbox import generate_html, generate_markdown
+    
+    output_path = Path(output)
+    parent_dir = output_path.parent
+    tacollection_path = parent_dir / "TACOLLECTION.json"
+    
+    print("\nGenerating documentation...")
+    
+    generate_html(
+        input=tacollection_path,
+        output=parent_dir / "index.html",
+        download_base_url=config.get("download_base_url"),
+        catalogue_url=config.get("catalogue_url", "https://tacofoundation.github.io/catalogue"),
+    )
+    
+    generate_markdown(
+        input=tacollection_path,
+        output=parent_dir / "README.md",
+    )
+    
+    print(f"Generated docs in {parent_dir}")
 
 
 def main():
@@ -99,6 +132,7 @@ def main():
     2. Build TACO by calling dataset.taco.create_taco()
     3. Write to disk in ZIP or FOLDER format
     4. If multiple ZIP parts created, generate TacoCat index and TACOLLECTION.json
+    5. Generate HTML and Markdown documentation (if enabled)
     """
     output = BUILD_CONFIG["output"]
     format_type = BUILD_CONFIG["format"]
@@ -141,13 +175,32 @@ def main():
                 validate_schema=validate_schema,
             )
         else:
-            print("Single ZIP created. No TacoCat needed.")
+            print("Single ZIP created. Generating TACOLLECTION.json...")
+            output_path = Path(output)
+            create_tacollection(
+                inputs=parts,
+                output=str(output_path.parent),
+                validate_schema=validate_schema,
+            )
 
     elif format_type == "folder":
         create(taco, output, backend="folder", **PARQUET_CONFIG)
+        
+        # Generate TACOLLECTION.json for FOLDER format too
+        print("Generating TACOLLECTION.json...")
+        output_path = Path(output)
+        create_tacollection(
+            inputs=[output_path],
+            output=str(output_path.parent),
+            validate_schema=validate_schema,
+        )
 
     else:
         raise ValueError(f"Unknown format: {format_type}")
+
+    # Step 5: Generate documentation
+    if BUILD_CONFIG.get("generate_docs", True):
+        generate_documentation(output, BUILD_CONFIG)
 
     print("Done!")
 

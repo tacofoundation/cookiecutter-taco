@@ -40,6 +40,22 @@ VALIDATE_SCHEMA = True         # Validate PIT schema consistency
 QUIET = False                  # Show progress bars and logs
 
 # =============================================================================
+# DOCUMENTATION
+# =============================================================================
+
+# Auto-generate interactive HTML and Markdown documentation after build
+GENERATE_DOCS = True
+
+# Optional: URL prefix for download links in documentation
+# Leave as None if files are not publicly accessible
+# Example: "https://huggingface.co/datasets/myorg/mydataset/resolve/main/"
+DOWNLOAD_BASE_URL = None
+
+# URL for "Back to Catalogue" button in HTML docs
+# Set to None to hide the button
+CATALOGUE_URL = "https://tacofoundation.github.io/catalogue"
+
+# =============================================================================
 # PARQUET CONFIGURATION (for data files)
 # =============================================================================
 
@@ -87,6 +103,9 @@ BUILD_CONFIG = {
     "clean_previous_outputs": CLEAN_PREVIOUS_OUTPUTS,
     "validate_schema": VALIDATE_SCHEMA,
     "quiet": QUIET,
+    "generate_docs": GENERATE_DOCS,
+    "download_base_url": DOWNLOAD_BASE_URL,
+    "catalogue_url": CATALOGUE_URL,
 }
 
 PARQUET_CONFIG = {
