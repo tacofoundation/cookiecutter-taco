@@ -5,115 +5,139 @@ This is the LEAF level of your TACO hierarchy. Each sample here is a FILE
 (the actual data), not a FOLDER containing more samples.
 
 Structure:
-- level0 (root) → level1 → level2 → level3 → level4 (LEAF - FILEs)
-- level4 samples are FILEs with actual data (GeoTIFF, PNG, bytes, etc.)
+    level0 (root) → level1 → level2 → level3 → level4 (LEAF - FILEs)
 
 How to use:
-1. Copy build_sample_example() and rename it (e.g., build_sample_image_001)
-2. Implement your logic to create/load the actual file data
-3. Return Sample with path pointing to file data (bytes, Path, or file object)
-4. Add the function to the SAMPLES list
-5. Repeat for all files at this level
+    1. Define your sample builders (one function per file type)
+    2. Each builder receives a context dict and returns a Sample
+    3. Add extensions to extract metadata (Header, GeotiffStats, STAC, etc.)
+    4. Add your builders to the SAMPLES list
+    5. Run this file directly to test with mocks
+
+Run directly to test with mocks:
+    python dataset/levels/level4.py
 
 Note:
-    level1-N builds are always SEQUENTIAL (no parallelism) to avoid nested
-    parallelism issues. Only level0 can be parallel (controlled in config.py).
+    build(ctx) receives ONE context and creates ONE Tortilla.
+    The parent level (level3) is responsible for iterating over multiple contexts.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from tacotoolbox.datamodel import Sample, Tortilla
+from tacotoolbox.sample.extensions.stac import STAC
+from tacotoolbox.sample.extensions.scaling import Scaling
+from tacotoolbox.sample.extensions.split import Split
+from tacotoolbox.sample.extensions.tacotiff import Header
+from tacotoolbox.sample.extensions.geotiff_stats import GeotiffStats
 
-# =============================================================================
-# TORTILLA PARAMETERS
-# =============================================================================
 
-# PAD_TO: Auto-pad samples to make count divisible by this number
-#   None = no padding (default)
-#   Example: PAD_TO = 10 pads [1,2,3] -> [1,2,3,PAD,PAD,PAD,PAD,PAD,PAD,PAD]
+# Mocks
+# Used when running this file directly (python dataset/levels/level4.py).
+# When a parent level calls build(ctx), these are ignored.
+# Each mock context simulates what the parent level would pass.
+
+MOCKS_DIR = Path("dataset") / "mocks"
+
+MOCK_CONTEXTS = [
+    {"id": "sample01", "path": MOCKS_DIR / "sample01"},
+    {"id": "sample02", "path": MOCKS_DIR / "sample02"},
+]
+
+
+# Tortilla parameters
+# PAD_TO: pad samples to make count divisible (None = no padding)
+# STRICT_SCHEMA: all samples must have identical metadata fields (recommended True)
+
 PAD_TO = None
-
-# STRICT_SCHEMA: Enforce uniform metadata schema across all samples
-#   True = all samples MUST have identical metadata fields (recommended)
-#   False = heterogeneous schemas allowed, missing fields filled with None
 STRICT_SCHEMA = True
 
 
-# =============================================================================
-# SAMPLE BUILDERS - TODO: IMPLEMENT YOUR SAMPLES HERE
-# =============================================================================
-# Each function builds ONE FILE sample at this level.
-# Copy, rename, and modify build_sample_example() for each file.
+# Sample builders
+# One function per file type. Each receives ONE ctx dict and returns ONE Sample.
+# ctx contains whatever data the parent level passes (or MOCK_CONTEXTS when testing).
+# 
+# Available extensions:
+#   Header()        - TACOTIFF binary header for fast reading
+#   GeotiffStats()  - Per-band statistics (min, max, mean, std, percentiles)
+#   GeotiffStats(categorical=True, class_values=[0,1,2]) - Class probabilities
+#   STAC(crs=..., tensor_shape=..., geotransform=..., time_start=...) - Spatiotemporal
+#   Scaling(scale_factor=..., scale_offset=...) - Data unpacking transformation
+#   Split(split="train"|"test"|"validation") - Dataset partition
 
-
-def build_sample_example() -> Sample:
-    """TODO: Rename and implement this function for your first file."""
-    # Example: Create in-memory data
-    data = b"test_data"
-    
-    sample = Sample(id="example", path=data)
-    
-    # =========================================================================
-    # ADD YOUR SAMPLE-LEVEL EXTENSIONS HERE
-    # =========================================================================
-    # Sample extensions add metadata to individual samples.
-    #
-    # Examples (based on available extensions):
-    #
-    #   from extensions.stac import STAC
-    #   sample.extend_with(STAC(
-    #       crs="EPSG:4326",
-    #       tensor_shape=(256, 256),
-    #       geotransform=(0, 1, 0, 0, 0, -1),
-    #       time_start=1609459200
-    #   ))
-    #
-    #   from extensions.scaling import Scaling
-    #   sample.extend_with(Scaling(
-    #       scale_factor=0.0001,
-    #       scale_offset=0.0
-    #   ))
-    #
-    #   from extensions.split import Split
-    #   sample.extend_with(Split(split="train"))
-    #
-    #   from extensions.geotiff_stats import GeotiffStats
-    #   sample.extend_with(GeotiffStats(categorical=False))
-    #
-    # =========================================================================
-    
+def build_sample_rgb(ctx: dict) -> Sample:
+    """RGB image (3 bands, uint8)"""
+    sample = Sample(id="rgb", path=ctx["path"] / "rgb_uint8.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
     return sample
 
 
-# =============================================================================
-# SAMPLES LIST - Add all your sample builder functions here
-# =============================================================================
-
-SAMPLES = [build_sample_example]
-
-
-# =============================================================================
-# BUILD FUNCTION - Infrastructure (DO NOT EDIT)
-# =============================================================================
+def build_sample_multiband(ctx: dict) -> Sample:
+    """Multispectral image (10 bands, uint16)"""
+    sample = Sample(id="multiband", path=ctx["path"] / "multiband_uint16.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
+    return sample
 
 
-def build() -> Tortilla:
-    """Build Tortilla from all samples in SAMPLES list (sequential)."""
+def build_sample_singleband(ctx: dict) -> Sample:
+    """Singleband float (DEM, indices, etc.)"""
+    sample = Sample(id="singleband", path=ctx["path"] / "singleband_float32.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
+    return sample
+
+
+def build_sample_mask_binary(ctx: dict) -> Sample:
+    """Binary mask (0/1)"""
+    sample = Sample(id="mask_binary", path=ctx["path"] / "mask_binary.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1]))
+    return sample
+
+
+def build_sample_mask_multiclass(ctx: dict) -> Sample:
+    """Multiclass mask (0-5)"""
+    sample = Sample(id="mask_multiclass", path=ctx["path"] / "mask_multiclass.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1, 2, 3, 4, 5]))
+    return sample
+
+
+# Samples list
+# Add all your sample builders here. Order matters for PIT schema consistency.
+
+SAMPLES = [
+    build_sample_rgb,
+    build_sample_multiband,
+    build_sample_singleband,
+    build_sample_mask_binary,
+    build_sample_mask_multiclass,
+]
+
+
+# Build function
+# Receives ONE context dict and creates ONE Tortilla containing all samples.
+# The parent level (level3) calls this function for each of its contexts.
+
+def build(ctx: dict) -> Tortilla:
     return Tortilla(
-        samples=[fn() for fn in SAMPLES],
+        samples=[fn(ctx) for fn in SAMPLES],
         pad_to=PAD_TO,
-        strict_schema=STRICT_SCHEMA
+        strict_schema=STRICT_SCHEMA,
     )
 
 
-# =============================================================================
-# VALIDATION - Run this file directly to test your samples
-# =============================================================================
+# Validation
+# Run this file directly to test your sample builders with mocks.
 
 if __name__ == "__main__":
-    from levels import validate
-    
-    print("Running level4 validation...")    
-    validate(SAMPLES, sample_ratio=1.0, workers=2)
-    
-    print("\nBuilding tortilla...")
-    tortilla = build()
-    print(f"Success! Created {len(tortilla.samples)} samples")
+    print("Building level4 with mocks...")
+    for ctx in MOCK_CONTEXTS:
+        tortilla = build(ctx)
+        print(f"{ctx['id']}: {len(tortilla.samples)} samples")
+    print(tortilla.export_metadata())

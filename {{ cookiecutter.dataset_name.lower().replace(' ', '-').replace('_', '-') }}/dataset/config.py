@@ -1,64 +1,46 @@
 """
 TACO Dataset Configuration
 
-Edit the variables in the sections below to configure your dataset.
-The dictionaries at the bottom are auto-generated from these variables.
-
-DO NOT EDIT the "INTERNAL" section unless you know what you're doing.
+Edit the variables below to configure your dataset.
+DO NOT EDIT the COLLECTION dictionary at the bottom.
 """
 
-# =============================================================================
-# COLLECTION METADATA
-# =============================================================================
+from tacotoolbox.taco.datamodel import Contact
 
+# Collection metadata
 COLLECTION_ID = "{{ cookiecutter.dataset_name.lower().replace(' ', '-').replace('_', '-') }}"
 COLLECTION_VERSION = "1.0.0"
 COLLECTION_DESCRIPTION = "TACO dataset: {{ cookiecutter.dataset_name }}"
 COLLECTION_LICENSES = ["CC-BY-4.0"]
-COLLECTION_PROVIDERS = [{"name": "Dataset Author", "roles": ["producer"]}]
+COLLECTION_PROVIDERS = [
+    Contact(name="Dataset Author", role="producer")
+]
 COLLECTION_TASKS = ["other"]
 COLLECTION_TITLE = "{{ cookiecutter.dataset_name }}"
 COLLECTION_KEYWORDS = ["taco", "dataset"]
 
-# =============================================================================
-# BUILD CONFIGURATION
-# =============================================================================
-
 # Parallel processing
 WORKERS = 4
-LEVEL0_PARALLEL = True  # Enable parallel build for level0 samples (set False for debugging)
-LEVEL0_SAMPLE_LIMIT = None  # Limit number of level0 samples to build (None = all, useful for debugging)
+LEVEL0_PARALLEL = True
+LEVEL0_SAMPLE_LIMIT = None  # None = all samples, set number for debugging
 
 # Output settings
 OUTPUT_PATH = "output.tacozip"
-OUTPUT_FORMAT = "zip"  # "zip" or "folder"
-MAX_ZIP_SIZE = "4GB"
+OUTPUT_FORMAT = "auto"  # "auto", "zip", or "folder"
+SPLIT_SIZE = "4GB"      # Max size per ZIP file, None = no splitting
+GROUP_BY = None         # Column(s) to group by, None = no grouping
+CONSOLIDATE = True      # Auto-create .tacocat/ when multiple ZIPs generated
 
 # Build options
-CLEAN_PREVIOUS_OUTPUTS = True  # Auto-clean before building
-VALIDATE_SCHEMA = True         # Validate PIT schema consistency
-QUIET = False                  # Show progress bars and logs
+CLEAN_PREVIOUS_OUTPUTS = True
+VALIDATE_SCHEMA = True
 
-# =============================================================================
-# DOCUMENTATION
-# =============================================================================
-
-# Auto-generate interactive HTML and Markdown documentation after build
+# Documentation
 GENERATE_DOCS = True
-
-# Optional: URL prefix for download links in documentation
-# Leave as None if files are not publicly accessible
-# Example: "https://huggingface.co/datasets/myorg/mydataset/resolve/main/"
-DOWNLOAD_BASE_URL = None
-
-# URL for "Back to Catalogue" button in HTML docs
-# Set to None to hide the button
+DOWNLOAD_BASE_URL = None  # URL prefix for download links, None if not public
 CATALOGUE_URL = "https://tacofoundation.github.io/catalogue"
 
-# =============================================================================
-# PARQUET CONFIGURATION (for data files)
-# =============================================================================
-
+# Parquet configuration (passed to create() as **kwargs)
 PARQUET_ROW_GROUP_SIZE = 122880
 PARQUET_COMPRESSION = "zstd"
 PARQUET_COMPRESSION_LEVEL = 3
@@ -66,21 +48,8 @@ PARQUET_USE_DICTIONARY = True
 PARQUET_WRITE_STATISTICS = True
 PARQUET_DATA_PAGE_SIZE = 1048576
 
-# =============================================================================
-# TACOCAT PARQUET CONFIGURATION (for consolidated metadata)
-# =============================================================================
 
-TACOCAT_PARQUET_ROW_GROUP_SIZE = 122880
-TACOCAT_PARQUET_COMPRESSION = "zstd"
-TACOCAT_PARQUET_COMPRESSION_LEVEL = 13  # Higher compression for metadata-only
-TACOCAT_PARQUET_USE_DICTIONARY = True
-TACOCAT_PARQUET_WRITE_STATISTICS = True
-TACOCAT_PARQUET_DATA_PAGE_SIZE = 1048576
-
-
-# =============================================================================
 # INTERNAL: Auto-generated dictionaries (DO NOT EDIT)
-# =============================================================================
 
 COLLECTION = {
     "id": COLLECTION_ID,
@@ -99,10 +68,11 @@ BUILD_CONFIG = {
     "level0_sample_limit": LEVEL0_SAMPLE_LIMIT,
     "output": OUTPUT_PATH,
     "format": OUTPUT_FORMAT,
-    "max_zip_size": MAX_ZIP_SIZE,
+    "split_size": SPLIT_SIZE,
+    "group_by": GROUP_BY,
+    "consolidate": CONSOLIDATE,
     "clean_previous_outputs": CLEAN_PREVIOUS_OUTPUTS,
     "validate_schema": VALIDATE_SCHEMA,
-    "quiet": QUIET,
     "generate_docs": GENERATE_DOCS,
     "download_base_url": DOWNLOAD_BASE_URL,
     "catalogue_url": CATALOGUE_URL,
@@ -115,13 +85,4 @@ PARQUET_CONFIG = {
     "use_dictionary": PARQUET_USE_DICTIONARY,
     "write_statistics": PARQUET_WRITE_STATISTICS,
     "data_page_size": PARQUET_DATA_PAGE_SIZE,
-}
-
-TACOCAT_PARQUET_CONFIG = {
-    "row_group_size": TACOCAT_PARQUET_ROW_GROUP_SIZE,
-    "compression": TACOCAT_PARQUET_COMPRESSION,
-    "compression_level": TACOCAT_PARQUET_COMPRESSION_LEVEL,
-    "use_dictionary": TACOCAT_PARQUET_USE_DICTIONARY,
-    "write_statistics": TACOCAT_PARQUET_WRITE_STATISTICS,
-    "data_page_size": TACOCAT_PARQUET_DATA_PAGE_SIZE,
 }

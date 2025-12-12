@@ -5,173 +5,201 @@ Level 0 - Root Level
 (the actual data), not a FOLDER containing more samples.
 
 Structure:
-- level0 (root, FILES)
-- level0 samples are FILEs with actual data (GeoTIFF, PNG, bytes, etc.)
+    level0 (root - FILEs)
 {% else %}This is the ROOT level of your TACO hierarchy. Each sample here becomes a
 top-level entry in your dataset.
 
 Structure:
-- level0 samples are FOLDERs that contain level1 tortillas
-- level1 → level2 → ... → level{{ cookiecutter.max_levels }} (leaves are FILEs)
+    level0 (root FOLDERs) → level1 → ... → level{{ cookiecutter.max_levels }} (FILEs)
 {% endif %}
-
 How to use:
-{% if cookiecutter.max_levels|int == 0 %}1. Copy build_sample_example() and rename it (e.g., build_sample_file_001)
-2. Implement your logic to create/load the actual file data
-3. Return Sample with path pointing to file data (bytes, Path, or file object)
-4. Add the function to the SAMPLES list
-5. Repeat for all files in your dataset
-{% else %}1. Copy build_sample_example() and rename it (e.g., build_sample_tile_001)
-2. Implement your logic to build the child tortilla from level1
-3. Add the function to the SAMPLES list
-4. Repeat for all root samples in your dataset
+{% if cookiecutter.max_levels|int == 0 %}    1. Define your sample builders (one function per file type)
+    2. Each builder receives a context dict and returns a Sample
+    3. Add extensions to extract metadata (Header, GeotiffStats, STAC, etc.)
+    4. Add your builders to the SAMPLES list
+    5. Run this file directly to test with mocks
+{% else %}    1. Define your sample builders (one function per root folder type)
+    2. Each builder receives a context dict (from MOCK_CONTEXTS or real data)
+    3. Call level1.build(ctx) to create the child Tortilla
+    4. Wrap it in a Sample with type=FOLDER
+    5. Add your builders to the SAMPLES list
 {% endif %}
+Run directly to test with mocks:
+    python dataset/levels/level0.py
 
 Note:
-    level0 can be built in parallel (controlled by LEVEL0_PARALLEL in config.py).
-{% if cookiecutter.max_levels|int > 0 %}    All other levels (level1-N) are always sequential to avoid nested parallelism.
-{% endif %}"""
+    level0.build() iterates over ALL contexts and creates the root Tortilla.
+    This is the only level that iterates - all others receive a single context.
+"""
 
-from concurrent.futures import ProcessPoolExecutor
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+import pyarrow as pa
 from tacotoolbox.datamodel import Sample, Tortilla
-from tqdm import tqdm
-from dataset.config import LEVEL0_PARALLEL, LEVEL0_SAMPLE_LIMIT, WORKERS
-{% if cookiecutter.max_levels|int > 0 %}from dataset.levels import level1{% endif %}
+from tacotoolbox.sample.datamodel import SampleExtension
+{% if cookiecutter.max_levels|int == 0 %}from tacotoolbox.sample.extensions.stac import STAC
+from tacotoolbox.sample.extensions.scaling import Scaling
+from tacotoolbox.sample.extensions.split import Split
+from tacotoolbox.sample.extensions.tacotiff import Header
+from tacotoolbox.sample.extensions.geotiff_stats import GeotiffStats
+{% else %}from dataset.levels import level1
+{% endif %}
 
-# =============================================================================
-# TORTILLA PARAMETERS
-# =============================================================================
+# Mocks
+# Used when running this file directly.
+# In production, replace with real data loading.
 
-# PAD_TO: Auto-pad samples to make count divisible by this number
-#   None = no padding (default)
-#   Example: PAD_TO = 10 pads [1,2,3] -> [1,2,3,PAD,PAD,PAD,PAD,PAD,PAD,PAD]
+MOCKS_DIR = Path("dataset") / "mocks"
+
+MOCK_CONTEXTS = [
+    {"id": "sample01", "path": MOCKS_DIR / "sample01"},
+    {"id": "sample02", "path": MOCKS_DIR / "sample02"},
+]
+
+
+# Tortilla parameters
+
 PAD_TO = None
-
-# STRICT_SCHEMA: Enforce uniform metadata schema across all samples
-#   True = all samples MUST have identical metadata fields (recommended)
-#   False = heterogeneous schemas allowed, missing fields filled with None
 STRICT_SCHEMA = True
 
 
-# =============================================================================
-# SAMPLE BUILDERS - TODO: IMPLEMENT YOUR SAMPLES HERE
-# =============================================================================
-{% if cookiecutter.max_levels|int == 0 %}# Each function builds ONE FILE sample.
-# Copy, rename, and modify build_sample_example() for each file in your dataset.
-{% else %}# Each function builds ONE root sample.
-# Copy, rename, and modify build_sample_example() for each sample in your dataset.
-{% endif %}
+{% if cookiecutter.max_levels|int == 0 %}# Sample builders
+# One function per file type. Each receives ONE ctx dict and returns ONE Sample.
+# 
+# Available extensions:
+#   Header()        - TACOTIFF binary header for fast reading
+#   GeotiffStats()  - Per-band statistics (min, max, mean, std, percentiles)
+#   GeotiffStats(categorical=True, class_values=[0,1,2]) - Class probabilities
+#   STAC(crs=..., tensor_shape=..., geotransform=..., time_start=...) - Spatiotemporal
+#   Scaling(scale_factor=..., scale_offset=...) - Data unpacking transformation
+#   Split(split="train"|"test"|"validation") - Dataset partition
 
-
-def build_sample_example() -> Sample:
-    """TODO: Rename and implement this function for your first sample."""
-{% if cookiecutter.max_levels|int == 0 %}    # Example: Create in-memory data
-    data = b"test_data"
-    
-    sample = Sample(id="example", path=data)
-{% else %}    child_tortilla = level1.build()
-    
-    sample = Sample(id="example", path=child_tortilla)
-{% endif %}    
-    # =========================================================================
-    # ADD YOUR SAMPLE-LEVEL EXTENSIONS HERE
-    # =========================================================================
-    # Sample extensions add metadata to individual samples.
-    #
-    # Examples (based on available extensions):
-    #
-    #   from extensions.stac import STAC
-    #   sample.extend_with(STAC(
-    #       crs="EPSG:4326",
-    #       tensor_shape=(256, 256),
-    #       geotransform=(0, 1, 0, 0, 0, -1),
-    #       time_start=1609459200
-    #   ))
-{% if cookiecutter.max_levels|int == 0 %}    #
-    #   from extensions.scaling import Scaling
-    #   sample.extend_with(Scaling(
-    #       scale_factor=0.0001,
-    #       scale_offset=0.0
-    #   ))
-    #
-    #   from extensions.geotiff_stats import GeotiffStats
-    #   sample.extend_with(GeotiffStats(categorical=False))
-{% else %}    #
-    #   from extensions.istac import ISTAC
-    #   sample.extend_with(ISTAC(
-    #       crs="EPSG:4326",
-    #       geometry=wkb_bytes,
-    #       time_start=1609459200
-    #   ))
-{% endif %}    #
-    #   from extensions.split import Split
-    #   sample.extend_with(Split(split="train"))
-    #
-    # =========================================================================
-    
+def build_sample_rgb(ctx: dict) -> Sample:
+    """RGB image (3 bands, uint8)"""
+    sample = Sample(id="rgb", path=ctx["path"] / "rgb_uint8.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
     return sample
 
 
-# =============================================================================
-# SAMPLES LIST - Add all your sample builder functions here
-# =============================================================================
-# This list will be processed in parallel by tortilla.py
-
-SAMPLES = [build_sample_example]
-
-
-# =============================================================================
-# BUILD FUNCTION - Infrastructure (DO NOT EDIT)
-# =============================================================================
+def build_sample_multiband(ctx: dict) -> Sample:
+    """Multispectral image (10 bands, uint16)"""
+    sample = Sample(id="multiband", path=ctx["path"] / "multiband_uint16.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
+    return sample
 
 
-def _call_sample_builder(fn):
-    """Helper to call sample builder function."""
-    return fn()
+def build_sample_singleband(ctx: dict) -> Sample:
+    """Singleband float (DEM, indices, etc.)"""
+    sample = Sample(id="singleband", path=ctx["path"] / "singleband_float32.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats())
+    return sample
 
 
-def build() -> Tortilla:
-    """
-    Build Tortilla from all samples in SAMPLES list.
+def build_sample_mask_binary(ctx: dict) -> Sample:
+    """Binary mask (0/1)"""
+    sample = Sample(id="mask_binary", path=ctx["path"] / "mask_binary.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1]))
+    return sample
+
+
+def build_sample_mask_multiclass(ctx: dict) -> Sample:
+    """Multiclass mask (0-5)"""
+    sample = Sample(id="mask_multiclass", path=ctx["path"] / "mask_multiclass.tif")
+    sample.extend_with(Header())
+    sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1, 2, 3, 4, 5]))
+    return sample
+
+
+SAMPLES = [
+    build_sample_rgb,
+    build_sample_multiband,
+    build_sample_singleband,
+    build_sample_mask_binary,
+    build_sample_mask_multiclass,
+]
+{% else %}# Custom extension example
+# Location metadata for spatial datasets.
+
+class TileMetadata(SampleExtension):
+    """Extension that adds tile/location metadata."""
     
-    Uses parallel processing if LEVEL0_PARALLEL=True in config.py.
-    Respects LEVEL0_SAMPLE_LIMIT for debugging (None = build all samples).
-    """
-    # Apply sample limit if configured
-    samples_to_build = SAMPLES[:LEVEL0_SAMPLE_LIMIT] if LEVEL0_SAMPLE_LIMIT else SAMPLES
+    tile_id: str
+    region: str
+    utm_zone: int
     
-    if LEVEL0_SAMPLE_LIMIT:
-        print(f"DEBUG MODE: Building only {len(samples_to_build)}/{len(SAMPLES)} samples")
+    def get_schema(self) -> pa.Schema:
+        return pa.schema([
+            pa.field("tile:id", pa.string()),
+            pa.field("tile:region", pa.string()),
+            pa.field("tile:utm_zone", pa.int32()),
+        ])
     
-    if LEVEL0_PARALLEL:
-        # Parallel execution (default)
-        with ProcessPoolExecutor(max_workers=WORKERS) as pool:
-            samples = list(tqdm(
-                pool.map(_call_sample_builder, samples_to_build),
-                total=len(samples_to_build),
-                desc="Building level0"
-            ))
-    else:
-        # Sequential execution (debugging)
-        samples = [fn() for fn in tqdm(samples_to_build, desc="Building level0")]
+    def get_field_descriptions(self) -> dict[str, str]:
+        return {
+            "tile:id": "Tile identifier (e.g., MGRS grid)",
+            "tile:region": "Geographic region name",
+            "tile:utm_zone": "UTM zone number",
+        }
     
-    return Tortilla(
-        samples=samples,
+    def _compute(self, sample: Sample) -> pa.Table:
+        return pa.Table.from_pydict({
+            "tile:id": [self.tile_id],
+            "tile:region": [self.region],
+            "tile:utm_zone": [self.utm_zone],
+        }, schema=self.get_schema())
+
+
+# Sample builders
+# One function per folder type. Each receives ONE ctx dict and returns ONE Sample (FOLDER).
+
+def build_sample_tile(ctx: dict) -> Sample:
+    """Tile FOLDER sample wrapping level1 Tortilla."""
+    child_tortilla = level1.build(ctx)
+    sample = Sample(id=ctx["id"], path=child_tortilla)
+    sample.extend_with(TileMetadata(
+        tile_id=f"T30SYJ_{ctx['id']}",
+        region="Valencia",
+        utm_zone=30,
+    ))
+    return sample
+
+
+SAMPLES = [
+    build_sample_tile,
+]
+{% endif %}
+
+# Build function
+# This is the ROOT level - it iterates over ALL contexts and creates the final Tortilla.
+
+def build(contexts: list[dict] | None = None) -> Tortilla:
+    contexts = contexts if contexts is not None else MOCK_CONTEXTS
+{% if cookiecutter.max_levels|int == 0 %}    return Tortilla(
+        samples=[fn(ctx) for ctx in contexts for fn in SAMPLES],
         pad_to=PAD_TO,
-        strict_schema=STRICT_SCHEMA
+        strict_schema=STRICT_SCHEMA,
     )
+{% else %}    return Tortilla(
+        samples=[fn(ctx) for ctx in contexts for fn in SAMPLES],
+        pad_to=PAD_TO,
+        strict_schema=STRICT_SCHEMA,
+    )
+{% endif %}
 
-
-# =============================================================================
-# VALIDATION - Run this file directly to test your samples
-# =============================================================================
+# Validation
 
 if __name__ == "__main__":
-    from levels import validate
-    
-    print("Running level0 validation...")    
-    validate(SAMPLES, sample_ratio=1.0, workers=2)
-    
-    print("\nBuilding tortilla...")
+{% if cookiecutter.max_levels|int > 0 %}    import importlib
+    importlib.reload(level1)
+{% endif %}
+    print("Building level0 with mocks...")
     tortilla = build()
-    print(f"Success! Created {len(tortilla.samples)} samples")
+    print(f"Created {len(tortilla.samples)} root samples")
+    print(tortilla.export_metadata())
