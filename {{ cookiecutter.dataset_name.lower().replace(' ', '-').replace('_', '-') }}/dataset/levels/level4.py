@@ -105,5 +105,4 @@ if __name__ == "__main__":
     print(f"Building level4 with {len(contexts)} contexts...")
     for ctx in contexts:
         tortilla = build(ctx)
-        print(f"{ctx['id']}: {len(tortilla.samples)} samples")
     print(tortilla.export_metadata())

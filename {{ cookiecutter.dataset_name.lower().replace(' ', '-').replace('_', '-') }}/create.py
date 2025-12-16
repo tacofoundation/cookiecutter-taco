@@ -100,29 +100,42 @@ def generate_documentation(output: str, config: dict):
     output_path = Path(output)
     parent_dir = output_path.parent
     
-    # Determine input: .tacocat/ dir or COLLECTION.json
     tacocat_dir = parent_dir / ".tacocat"
-    if tacocat_dir.exists():
-        input_path = tacocat_dir
+    
+    if tacocat_dir.exists() and tacocat_dir.is_dir():
+        input_path = tacocat_dir / "COLLECTION.json"
+        if not input_path.exists():
+            print(f"\nWARNING: {input_path} not found, skipping documentation generation")
+            return
     else:
-        # Use standalone COLLECTION.json we just created
         input_path = parent_dir / "COLLECTION.json"
+        if not input_path.exists():
+            print(f"\nWARNING: {input_path} not found, skipping documentation generation")
+            return
     
-    print("\nGenerating documentation...")
+    print(f"\nGenerating documentation from {input_path}...")
     
-    generate_html(
-        input=input_path,
-        output=parent_dir / "index.html",
-        download_base_url=config.get("download_base_url"),
-        catalogue_url=config.get("catalogue_url", "https://tacofoundation.github.io/catalogue"),
-    )
+    try:
+        generate_html(
+            input=input_path,
+            output=parent_dir / "index.html",
+            download_base_url=config.get("download_base_url"),
+            catalogue_url=config.get("catalogue_url", "https://tacofoundation.github.io/catalogue"),
+        )
+        print(f"Generated index.html")
+    except Exception as e:
+        print(f"Failed to generate HTML: {e}")
     
-    generate_markdown(
-        input=input_path,
-        output=parent_dir / "README.md",
-    )
+    try:
+        generate_markdown(
+            input=input_path,
+            output=parent_dir / "README.md",
+        )
+        print(f"Generated README.md")
+    except Exception as e:
+        print(f"Failed to generate Markdown: {e}")
     
-    print(f"Generated docs in {parent_dir}")
+    print(f"\nDocumentation generated in {parent_dir}")
 
 
 def main():
@@ -203,14 +216,19 @@ def main():
     for path in paths:
         print(f"  - {path}")
     
-    # Step 6: Generate COLLECTION.json
+    # Step 6: Generate COLLECTION.json (if single file, not consolidated)
     output_path = Path(output)
     parent_dir = output_path.parent
     tacocat_path = parent_dir / ".tacocat"
     
-    if tacocat_path.exists():
-        # Multiple ZIPs consolidated - COLLECTION.json inside .tacocat/
-        print(f"\nConsolidated metadata in {tacocat_path}")
+    if tacocat_path.exists() and tacocat_path.is_dir():
+        # Multiple ZIPs consolidated - COLLECTION.json should be inside .tacocat/
+        collection_in_tacocat = tacocat_path / "COLLECTION.json"
+        if collection_in_tacocat.exists():
+            print(f"\nConsolidated metadata in {tacocat_path}")
+        else:
+            print(f"\nWARNING: Expected {collection_in_tacocat} but not found")
+            print("Consolidation may have failed - check warnings above")
     else:
         # Single file - generate COLLECTION.json in parent dir
         print(f"\nGenerating COLLECTION.json in {parent_dir}")
