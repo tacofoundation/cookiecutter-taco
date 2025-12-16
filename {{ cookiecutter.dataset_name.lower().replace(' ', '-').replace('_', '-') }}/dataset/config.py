@@ -5,7 +5,7 @@ Edit the variables below to configure your dataset.
 DO NOT EDIT the COLLECTION dictionary at the bottom.
 """
 
-from tacotoolbox.taco.datamodel import Contact
+from tacotoolbox.taco.datamodel import Contact, Publication, Publications
 
 # Collection metadata
 COLLECTION_ID = "{{ cookiecutter.dataset_name.lower().replace(' ', '-').replace('_', '-') }}"
@@ -18,6 +18,29 @@ COLLECTION_PROVIDERS = [
 COLLECTION_TASKS = ["other"]
 COLLECTION_TITLE = "{{ cookiecutter.dataset_name }}"
 COLLECTION_KEYWORDS = ["taco", "dataset"]
+
+# Optional: Dataset curators (people who maintain/curate the dataset)
+# COLLECTION_CURATORS = [
+#     Contact(
+#         name="Your Name",
+#         organization="Your Organization",
+#         email="your.email@example.com",
+#         role="curator",
+#     ),
+# ]
+COLLECTION_CURATORS = None
+
+# Optional: Publications related to the dataset
+# COLLECTION_PUBLICATIONS = Publications(
+#     publications=[
+#         Publication(
+#             doi="10.1234/example.doi",
+#             citation="Author et al. (2024). Paper Title. Journal Name.",
+#             summary="Brief description of paper relevance (optional)",
+#         ),
+#     ]
+# )
+COLLECTION_PUBLICATIONS = None
 
 # Parallel processing
 WORKERS = 4
@@ -61,6 +84,14 @@ COLLECTION = {
     "title": COLLECTION_TITLE,
     "keywords": COLLECTION_KEYWORDS,
 }
+
+# Add optional fields if defined
+if COLLECTION_CURATORS is not None:
+    COLLECTION["curators"] = COLLECTION_CURATORS
+
+if COLLECTION_PUBLICATIONS is not None:
+    # Extract list from Publications pydantic model
+    COLLECTION["publications"] = COLLECTION_PUBLICATIONS.publications
 
 BUILD_CONFIG = {
     "workers": WORKERS,
