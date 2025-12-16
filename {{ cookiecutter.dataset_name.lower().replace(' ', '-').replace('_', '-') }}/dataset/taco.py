@@ -11,61 +11,38 @@ Run directly to test:
     python dataset/taco.py
 """
 
-import sys
-from pathlib import Path
+from tacotoolbox.taco.datamodel import Taco
+# from tacotoolbox.taco.extensions.publications import Publications, Publication
+# from dataset.extensions import DatasetStats
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import pyarrow as pa
-from tacotoolbox.taco.datamodel import Taco, TacoExtension
-from dataset.config import COLLECTION
+from dataset.config import COLLECTION, LEVEL0_SAMPLE_LIMIT
 from dataset.tortilla import create_tortilla
+from dataset.metadata import load_contexts
 
 
-# Mock Taco Extension
-# Demonstrates pattern for dataset-wide metadata
-
-class MockTacoExtension(TacoExtension):
-    """Example extension for dataset-wide metadata."""
+def create_taco(contexts: list[dict] | None = None) -> Taco:
+    """
+    Create complete TACO from Tortilla + COLLECTION metadata.
     
-    dataset_tag: str = "demo"
+    Args:
+        contexts: List of context dicts, if None uses load_contexts(LEVEL0_SAMPLE_LIMIT)
     
-    def get_schema(self) -> pa.Schema:
-        return pa.schema([
-            pa.field("mock:dataset_tag", pa.string()),
-            pa.field("mock:total_samples", pa.int64()),
-        ])
+    Returns:
+        Taco: Complete TACO dataset
+    """
+    if contexts is None:
+        contexts = load_contexts(limit=LEVEL0_SAMPLE_LIMIT)
     
-    def get_field_descriptions(self) -> dict[str, str]:
-        return {
-            "mock:dataset_tag": "Demo tag for the dataset",
-            "mock:total_samples": "Total number of samples in root tortilla",
-        }
-    
-    def _compute(self, taco: Taco) -> pa.Table:
-        n_samples = len(taco.tortilla.samples)
-        return pa.Table.from_pydict({
-            "mock:dataset_tag": [self.dataset_tag],
-            "mock:total_samples": [n_samples],
-        }, schema=self.get_schema())
-
-
-def create_taco() -> Taco:
-    """Create complete TACO from Tortilla + COLLECTION metadata."""
-    print("Getting root Tortilla...")
-    root_tortilla = create_tortilla()
+    print(f"Getting root Tortilla with {len(contexts)} contexts...")
+    root_tortilla = create_tortilla(contexts)
 
     print("Creating TACO with COLLECTION metadata...")
     taco = Taco(tortilla=root_tortilla, **COLLECTION)
 
-    # TACO-level extensions (optional)
-    # Add dataset-wide metadata
+    # TACO-level extensions - dataset-wide metadata
+    # Uncomment extensions as needed:
     
-    # Mock extension (always works):
-    taco.extend_with(MockTacoExtension(dataset_tag="v1.0"))
-    
-    # Real extensions:
-    # from tacotoolbox.taco.extensions.publications import Publications, Publication
+    # taco.extend_with(DatasetStats())
     # taco.extend_with(Publications(publications=[
     #     Publication(
     #         doi="10.1038/s41586-021-03819-2",
@@ -80,7 +57,8 @@ def create_taco() -> Taco:
 if __name__ == "__main__":
     print("Building complete TACO dataset...\n")
     
-    taco = create_taco()
+    contexts = load_contexts(limit=LEVEL0_SAMPLE_LIMIT or 2)
+    taco = create_taco(contexts)
     
     print(f"\nTACO Created Successfully!")
     print(f"ID:              {taco.id}")

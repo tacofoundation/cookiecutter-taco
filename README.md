@@ -17,17 +17,20 @@ You'll be asked:
 
 ```
 my-dataset/
-├── create.py          # DON'T EDIT - runs the build
-└── dataset/           # EDIT THIS
-    ├── config.py      # All configuration
-    ├── taco.py        # TACO assembly
-    ├── tortilla.py    # Root tortilla
+└── dataset/
+    ├── config.py       # All configuration
+    ├── metadata.py     # Load contexts
+    ├── extensions.py   # Custom extensions
+    ├── build.py        # Build orchestration
+    ├── taco.py         # TACO assembly
+    ├── tortilla.py     # Root tortilla
     └── levels/
-        ├── level0.py  # Root samples (parallel)
-        └── level1.py  # Child samples (sequential)
+        ├── level0.py   # Root samples (parallel)
+        ├── level1.py   # Child samples (sequential)
+        └── ...
 ```
 
-**You only edit files in `dataset/`**. The `create.py` script is infrastructure.
+**All files are in `dataset/`**. Edit them to customize your dataset.
 
 ## Configuration (dataset/config.py)
 
@@ -109,16 +112,40 @@ PARQUET_ROW_GROUP_SIZE = 122880
 
 ## Implementation
 
-### 1. Edit config.py
+### 1. Edit dataset/config.py
 
 Set your metadata and build parameters.
 
-### 2. Implement samples in levels/
+### 2. Edit dataset/metadata.py
+
+Implement `load_contexts()` to load your dataset metadata:
+
+```python
+def load_contexts(limit: float | int | None = None) -> list[dict]:
+    """Load dataset metadata and return list of context dicts."""
+    # Load from CSV, Parquet, filesystem, database, etc.
+    contexts = [
+        {"id": "sample01", "path": b"/path/to/sample01"},
+        {"id": "sample02", "path": b"/path/to/sample02"},
+    ]
+    
+    # Apply limit if specified
+    if limit is not None:
+        if isinstance(limit, float):
+            count = int(len(contexts) * limit) or 1
+            return contexts[:count]
+        else:
+            return contexts[:limit]
+    
+    return contexts
+```
+
+### 3. Implement samples in dataset/levels/
 
 Each level file needs a list of sample builder functions.
 
 **IMPORTANT: PIT Compliance**
-- **level0 (root)**: Can have different IDs per sample
+- **level0 (root)**: Can have different IDs per sample (uses `ctx["id"]`)
 - **level1+**: Must use FIXED IDs (same for all parents) to ensure PIT compliance
 
 ```python
@@ -126,15 +153,12 @@ Each level file needs a list of sample builder functions.
 from tacotoolbox.datamodel import Sample
 from dataset.levels import level1
 
-def build_sample_tile_001() -> Sample:
-    child_tortilla = level1.build({"id": "tile_001", "path": ...})
-    return Sample(id="tile_001", path=child_tortilla)  # ✓ ctx["id"] OK
+def build_sample_tile(ctx: dict) -> Sample:
+    """Build one root sample using ctx["id"]."""
+    child_tortilla = level1.build(ctx)
+    return Sample(id=ctx["id"], path=child_tortilla)  # ✓ ctx["id"] OK
 
-def build_sample_tile_002() -> Sample:
-    child_tortilla = level1.build({"id": "tile_002", "path": ...})
-    return Sample(id="tile_002", path=child_tortilla)  # ✓ Different ID OK
-
-SAMPLES = [build_sample_tile_001, build_sample_tile_002]
+SAMPLES = [build_sample_tile]
 ```
 
 ```python
@@ -143,6 +167,7 @@ from tacotoolbox.datamodel import Sample
 from dataset.levels import level2
 
 def build_sample_date(ctx: dict) -> Sample:
+    """Build date folder - ID is FIXED."""
     child_tortilla = level2.build(ctx)
     return Sample(id="date_2023_05", path=child_tortilla)  # ✓ FIXED ID
 
@@ -152,13 +177,14 @@ SAMPLES = [build_sample_date]
 ```python
 # dataset/levels/level2.py (leaf level example)
 from tacotoolbox.datamodel import Sample
-from pathlib import Path
 
 def build_sample_rgb(ctx: dict) -> Sample:
-    return Sample(id="rgb", path=ctx["path"] / "rgb.tif")  # ✓ FIXED ID
+    """RGB image - ID is FIXED."""
+    return Sample(id="rgb", path=b"/path/to/rgb.tif")  # ✓ FIXED ID
 
 def build_sample_nir(ctx: dict) -> Sample:
-    return Sample(id="nir", path=ctx["path"] / "nir.tif")  # ✓ FIXED ID
+    """NIR image - ID is FIXED."""
+    return Sample(id="nir", path=b"/path/to/nir.tif")  # ✓ FIXED ID
 
 SAMPLES = [build_sample_rgb, build_sample_nir]
 ```
@@ -169,13 +195,13 @@ tile_001 → [date_2023_05] → [rgb, nir]
 tile_002 → [date_2023_05] → [rgb, nir]  # Same structure!
 ```
 
-### 3. Add extensions (optional)
+### 4. Add extensions (optional)
 
 ```python
 # In your sample builder
 from tacotoolbox.sample.extensions.stac import STAC
 
-sample = Sample(id="001", path=filepath)
+sample = Sample(id="001", path=b"/path/to/file.tif")
 sample.extend_with(STAC(
     crs="EPSG:4326",
     tensor_shape=(256, 256),
@@ -184,18 +210,67 @@ sample.extend_with(STAC(
 ))
 ```
 
-### 4. Test
+Or create custom extensions in `dataset/extensions.py`:
 
-```bash
-python dataset/levels/level0.py  # Test level0 samples
-python dataset/levels/level1.py  # Test level1 samples
-python dataset/taco.py           # Test complete TACO
+```python
+import pyarrow as pa
+from tacotoolbox.sample.datamodel import SampleExtension
+
+class CustomMetadata(SampleExtension):
+    region: str
+    quality_score: float
+    
+    def get_schema(self) -> dict[str, pa.DataType]:
+        return {
+            "custom:region": pa.string(),
+            "custom:quality_score": pa.float32(),
+        }
+    
+    def get_field_descriptions(self) -> dict[str, str]:
+        return {
+            "custom:region": "Geographic region",
+            "custom:quality_score": "Quality assessment score (0-1)",
+        }
+    
+    def _compute(self, sample) -> pa.Table:
+        schema = pa.schema([
+            (name, dtype) for name, dtype in self.get_schema().items()
+        ])
+        data = {
+            "custom:region": [self.region],
+            "custom:quality_score": [self.quality_score],
+        }
+        return pa.table(data, schema=schema)
 ```
 
-### 5. Build
+Then use it in your builders:
+```python
+from dataset.extensions import CustomMetadata
+
+sample.extend_with(CustomMetadata(region="north", quality_score=0.95))
+```
+
+### 5. Test
+
+Run levels as modules to test them individually:
 
 ```bash
-python create.py
+# Test individual levels
+python -m dataset.levels.level0
+python -m dataset.levels.level1
+python -m dataset.levels.level2
+
+# Test complete tortilla
+python -m dataset.tortilla
+
+# Test complete TACO
+python -m dataset.taco
+```
+
+### 6. Build
+
+```bash
+python -m dataset.build
 ```
 
 Output:
@@ -239,7 +314,7 @@ for path in df["internal:gdal_vsi"]:
 ## Debug Mode
 
 ```python
-# In config.py
+# In dataset/config.py
 LEVEL0_SAMPLE_LIMIT = 10       # Build only 10 samples
 LEVEL0_PARALLEL = False        # Sequential for debugging
 GENERATE_DOCS = False          # Skip docs generation
@@ -253,12 +328,29 @@ import tacotoolbox
 tacotoolbox.verbose("debug")   # Very detailed logging
 ```
 
+Test with limited samples:
+```bash
+# This will use LEVEL0_SAMPLE_LIMIT from config
+python -m dataset.taco
+```
+
+Or temporarily override in code:
+```python
+# In dataset/metadata.py during development
+def load_contexts(limit: float | int | None = None) -> list[dict]:
+    # Your loading logic...
+    contexts = [...]
+    
+    # Temporary override for quick testing
+    return contexts[:5]  # Only first 5 samples
+```
+
 ## Advanced: Grouping by Metadata
 
 Split dataset by metadata column instead of size:
 
 ```python
-# In config.py
+# In dataset/config.py
 SPLIT_SIZE = None              # Disable size-based splitting
 GROUP_BY = "spatialgroup:code" # Create one ZIP per spatial group
 CONSOLIDATE = True             # Auto-consolidate into .tacocat/
