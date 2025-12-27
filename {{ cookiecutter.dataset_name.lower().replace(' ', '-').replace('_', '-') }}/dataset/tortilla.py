@@ -21,7 +21,7 @@ from tacotoolbox.datamodel import Tortilla
 # from tacotoolbox.tortilla.extensions.geoenrich import GeoEnrich
 # from dataset.extensions import SpatialCoverage
 
-from dataset.levels import level0
+from dataset.levels.level0 import build as build_level0
 from dataset.metadata import load_contexts
 from dataset.config import LEVEL0_SAMPLE_LIMIT, LEVEL0_PARALLEL, WORKERS
 
@@ -50,7 +50,7 @@ def create_tortilla(contexts: list[dict] | None = None, parallel: bool | None = 
     print(f"Building root Tortilla with {len(contexts)} contexts...")
     print(f"Parallel: {parallel}, Workers: {workers}")
     
-    root_tortilla = level0.build(contexts, parallel=parallel, workers=workers)
+    root_tortilla = build_level0(contexts, parallel=parallel, workers=workers)
     
     # Tortilla extensions - computed metadata across all samples
     # Uncomment extensions as needed:
@@ -65,6 +65,7 @@ def create_tortilla(contexts: list[dict] | None = None, parallel: bool | None = 
 
 if __name__ == "__main__":
     import importlib
+    from dataset.levels import level0
     importlib.reload(level0)
     
     contexts = load_contexts(limit=LEVEL0_SAMPLE_LIMIT or 2)

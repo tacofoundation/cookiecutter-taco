@@ -5,7 +5,7 @@ Edit the variables below to configure your dataset.
 DO NOT EDIT the COLLECTION dictionary at the bottom.
 """
 
-from tacotoolbox.taco.datamodel import Contact, Publication, Publications
+from tacotoolbox.datamodel.taco import Contact, Publication, Publications
 
 # Collection metadata
 COLLECTION_ID = "{{ cookiecutter.dataset_name.lower().replace(' ', '-').replace('_', '-') }}"
