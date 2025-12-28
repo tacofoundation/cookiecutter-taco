@@ -62,6 +62,8 @@ VALIDATE_SCHEMA = True
 GENERATE_DOCS = True
 DOWNLOAD_BASE_URL = None  # URL prefix for download links, None if not public
 CATALOGUE_URL = "https://tacofoundation.github.io/catalogue"
+THEME_COLOR = "#4CAF50"   # Primary color: green default, try "#3498db" for blue
+DATASET_EXAMPLE_PATH = None  # Path for code examples, None = auto (uses COLLECTION_ID.tacozip)
 
 # Parquet configuration (passed to create() as **kwargs)
 PARQUET_ROW_GROUP_SIZE = 122880
@@ -107,6 +109,8 @@ BUILD_CONFIG = {
     "generate_docs": GENERATE_DOCS,
     "download_base_url": DOWNLOAD_BASE_URL,
     "catalogue_url": CATALOGUE_URL,
+    "theme_color": THEME_COLOR,
+    "dataset_example_path": DATASET_EXAMPLE_PATH,
 }
 
 PARQUET_CONFIG = {
