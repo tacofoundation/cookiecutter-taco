@@ -7,9 +7,11 @@ This is the final step to create your TACO dataset.
 2. Wraps it in Taco with COLLECTION metadata (from config.py)
 3. Applies TACO-level extensions (optional)
 
-Run directly to test:
-    python dataset/taco.py
+Run directly to preview COLLECTION.json before building:
+    python -m dataset.taco
 """
+
+import json
 
 from tacotoolbox.taco.datamodel import Taco
 # from tacotoolbox.taco.extensions.publications import Publications, Publication
@@ -54,16 +56,26 @@ def create_taco(contexts: list[dict] | None = None) -> Taco:
     return taco
 
 
-if __name__ == "__main__":
-    print("Building complete TACO dataset...\n")
+def preview(taco: Taco) -> dict:
+    """
+    Generate COLLECTION.json preview from Taco object.
     
+    Args:
+        taco: Complete Taco object
+        
+    Returns:
+        dict: COLLECTION.json content (without tortilla data)
+    """
+    return taco.model_dump(exclude={'tortilla'}, mode='json')
+
+
+if __name__ == "__main__":
     contexts = load_contexts(limit=LEVEL0_SAMPLE_LIMIT or 2)
     taco = create_taco(contexts)
     
-    print(f"\nTACO Created Successfully!")
-    print(f"ID:              {taco.id}")
-    print(f"Version:         {taco.dataset_version}")
-    print(f"Root samples:    {len(taco.tortilla.samples)}")
-    print(f"Tasks:           {', '.join(taco.tasks)}")
+    print(f"\nID: {taco.id}")
+    print(f"Version: {taco.dataset_version}")
+    print(f"Root samples: {len(taco.tortilla.samples)}")
     
-    print("\n✓ Ready to create dataset with: python dataset/build.py")
+    print("\nCOLLECTION.json:")
+    print(json.dumps(preview(taco), indent=2, default=str))
