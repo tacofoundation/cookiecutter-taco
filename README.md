@@ -2,6 +2,15 @@
 
 Cookiecutter template for TACO datasets.
 
+## Requirements
+
+- Python >= 3.10
+- tacotoolbox >= 0.22.0
+- tacoreader >= 2.0.0
+- jinja2 >= 3.0
+- cookiecutter >= 2.0
+- markdown >= 3.0
+
 ## Installation
 
 ```bash
@@ -13,15 +22,22 @@ You'll be asked:
 - `dataset_name`: Your dataset identifier
 - `max_levels`: Hierarchy depth (0-4)
 
+Then install dependencies:
+```bash
+cd my-dataset
+pip install -r requirements.txt
+```
+
 ## Structure
 
 ```
 my-dataset/
+├── requirements.txt
 └── dataset/
     ├── config.py       # All configuration
     ├── metadata.py     # Load contexts
     ├── extensions.py   # Custom extensions
-    ├── build.py        # Build orchestration
+    ├── create.py       # Build orchestration
     ├── taco.py         # TACO assembly
     ├── tortilla.py     # Root tortilla
     └── levels/
@@ -37,18 +53,35 @@ my-dataset/
 ### Collection Metadata
 
 ```python
-from tacotoolbox.taco.datamodel import Contact
+from tacotoolbox.datamodel.taco import Provider, Curator
 
 COLLECTION_ID = "my-dataset"           # Lowercase, hyphens allowed
 COLLECTION_VERSION = "1.0.0"           # Semantic versioning
 COLLECTION_DESCRIPTION = "..."         # What this dataset is
 COLLECTION_LICENSES = ["CC-BY-4.0"]    # SPDX identifiers
-COLLECTION_PROVIDERS = [               # Contact objects
-    Contact(name="Author Name", role="producer")
+COLLECTION_PROVIDERS = [               # Provider objects
+    Provider(name="Author Name", roles=["producer"])
 ]
 COLLECTION_TITLE = "My Dataset"        # Human readable
 COLLECTION_TASKS = ["classification"]  # ML task types
+
+# Optional: Dataset curators
+COLLECTION_CURATORS = [
+    Curator(
+        name="Your Name",
+        organization="Your Organization", 
+        email="your.email@example.com",
+    ),
+]
 ```
+
+### DataFrame Backend
+
+```python
+DATAFRAME_BACKEND = "pandas"  # "pyarrow", "polars", "pandas"
+```
+
+Controls how metadata is displayed when testing levels. Uses `tacoreader.use()` internally.
 
 ### Build Settings
 
@@ -76,6 +109,8 @@ When `CONSOLIDATE=True` and multiple ZIPs are created (via splitting or grouping
 GENERATE_DOCS = True             # Auto-generate HTML and Markdown docs
 DOWNLOAD_BASE_URL = None         # Optional: URL prefix for download links
 CATALOGUE_URL = "..."            # URL for "Back to Catalogue" button
+THEME_COLOR = "#4CAF50"          # Primary color for HTML docs
+DATASET_EXAMPLE_PATH = None      # Path for code examples (None = auto)
 ```
 
 The build script automatically generates:
@@ -270,7 +305,7 @@ python -m dataset.taco
 ### 6. Build
 
 ```bash
-python -m dataset.build
+python -m dataset.create
 ```
 
 Output:
@@ -294,6 +329,9 @@ Only level0 runs in parallel. All other levels are sequential.
 
 ```python
 import tacoreader
+
+# Set DataFrame backend (optional)
+tacoreader.use("pandas")  # "pyarrow", "polars", "pandas"
 
 # Single ZIP
 ds = tacoreader.load("output.tacozip")
@@ -320,6 +358,7 @@ LEVEL0_PARALLEL = False        # Sequential for debugging
 GENERATE_DOCS = False          # Skip docs generation
 SPLIT_SIZE = None              # No splitting
 CONSOLIDATE = False            # No consolidation
+DATAFRAME_BACKEND = "polars"   # Readable output when testing
 ```
 
 ```python
@@ -332,17 +371,6 @@ Test with limited samples:
 ```bash
 # This will use LEVEL0_SAMPLE_LIMIT from config
 python -m dataset.taco
-```
-
-Or temporarily override in code:
-```python
-# In dataset/metadata.py during development
-def load_contexts(limit: float | int | None = None) -> list[dict]:
-    # Your loading logic...
-    contexts = [...]
-    
-    # Temporary override for quick testing
-    return contexts[:5]  # Only first 5 samples
 ```
 
 ## Advanced: Grouping by Metadata

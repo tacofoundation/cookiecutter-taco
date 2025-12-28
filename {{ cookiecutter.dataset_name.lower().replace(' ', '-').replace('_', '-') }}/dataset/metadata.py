@@ -21,12 +21,21 @@ Usage:
     # Load all contexts
     contexts = load_contexts()
 
-    # Load 10% for testing
-    contexts = load_contexts(limit=0.1)
-
-    # Load first 10 for testing
+    # Load subset for testing
     contexts = load_contexts(limit=10)
 """
+
+import tacoreader
+if tacoreader.__version__ < "2.0.0":
+    raise ImportError(
+        f"tacoreader >= 2.0.0 required (found {tacoreader.__version__}). "
+        "Run: pip install -U tacoreader"
+    )
+
+from dataset.config import DATAFRAME_BACKEND
+
+# Configure DataFrame backend globally
+tacoreader.use(DATAFRAME_BACKEND)
 
 
 def load_contexts(limit: float | int | None = None) -> list[dict]:
@@ -121,11 +130,9 @@ def load_contexts(limit: float | int | None = None) -> list[dict]:
     if limit is None:
         return contexts
     elif isinstance(limit, float):
-        # Percentage (0.0-1.0)
         count = int(len(contexts) * limit) or 1
         return contexts[:count]
     else:
-        # Exact count
         return contexts[:limit]
 
 

@@ -5,7 +5,14 @@ Edit the variables below to configure your dataset.
 DO NOT EDIT the COLLECTION dictionary at the bottom.
 """
 
-from tacotoolbox.datamodel.taco import Contact, Publication, Publications
+import tacotoolbox
+if tacotoolbox.__version__ < "0.22.0":
+    raise ImportError(
+        f"tacotoolbox >= 0.22.0 required (found {tacotoolbox.__version__}). "
+        "Run: pip install -U tacotoolbox"
+    )
+
+from tacotoolbox.datamodel.taco import Provider, Curator, Publication, Publications
 
 # Collection metadata
 COLLECTION_ID = "{{ cookiecutter.dataset_name.lower().replace(' ', '-').replace('_', '-') }}"
@@ -13,7 +20,7 @@ COLLECTION_VERSION = "1.0.0"
 COLLECTION_DESCRIPTION = "TACO dataset: {{ cookiecutter.dataset_name }}"
 COLLECTION_LICENSES = ["CC-BY-4.0"]
 COLLECTION_PROVIDERS = [
-    Contact(name="Dataset Author", role="producer")
+    Provider(name="Dataset Author", roles=["producer"])
 ]
 COLLECTION_TASKS = ["other"]
 COLLECTION_TITLE = "{{ cookiecutter.dataset_name }}"
@@ -21,11 +28,10 @@ COLLECTION_KEYWORDS = ["taco", "dataset"]
 
 # Optional: Dataset curators (people who maintain/curate the dataset)
 # COLLECTION_CURATORS = [
-#     Contact(
+#     Curator(
 #         name="Your Name",
 #         organization="Your Organization",
 #         email="your.email@example.com",
-#         role="curator",
 #     ),
 # ]
 COLLECTION_CURATORS = None
@@ -41,6 +47,9 @@ COLLECTION_CURATORS = None
 #     ]
 # )
 COLLECTION_PUBLICATIONS = None
+
+# DataFrame backend for testing/debugging output
+DATAFRAME_BACKEND = "pandas"  # "pyarrow", "polars", "pandas"
 
 # Parallel processing
 WORKERS = 4
@@ -92,7 +101,6 @@ if COLLECTION_CURATORS is not None:
     COLLECTION["curators"] = COLLECTION_CURATORS
 
 if COLLECTION_PUBLICATIONS is not None:
-    # Extract list from Publications pydantic model
     COLLECTION["publications"] = COLLECTION_PUBLICATIONS.publications
 
 BUILD_CONFIG = {
