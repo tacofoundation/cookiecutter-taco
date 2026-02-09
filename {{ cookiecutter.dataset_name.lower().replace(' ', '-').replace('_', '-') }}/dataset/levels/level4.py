@@ -5,14 +5,13 @@ This is the LEAF level of your TACO hierarchy. Each sample here is a FILE
 (the actual data), not a FOLDER containing more samples.
 
 Structure:
-    level0 (root) → level1 → level2 → level3 → level4 (LEAF - FILEs)
+    level0 (root) -> level1 -> level2 -> level3 -> level4 (LEAF - FILEs)
 
 How to use:
     1. Define your sample builders (one function per file type)
     2. Each builder receives a context dict and returns a Sample
     3. Add extensions to extract metadata (Header, GeotiffStats, STAC, etc.)
     4. Add your builders to the SAMPLES list
-    5. Run this file directly to test
 
 Run directly to test:
     python dataset/levels/level4.py
@@ -20,14 +19,18 @@ Run directly to test:
 Note:
     build(ctx) receives ONE context and creates ONE Tortilla.
     The parent level (level3) is responsible for iterating over multiple contexts.
+
+    IMPORTANT: Sample IDs at level1+ must be FIXED (same for all parents).
+    Only level0 can have different IDs. This ensures PIT compliance.
 """
 
 from tacotoolbox.datamodel import Sample, Tortilla
-# from tacotoolbox.sample.extensions.stac import STAC
-# from tacotoolbox.sample.extensions.scaling import Scaling
-# from tacotoolbox.sample.extensions.split import Split
 # from tacotoolbox.sample.extensions.tacotiff import Header
 # from tacotoolbox.sample.extensions.geotiff_stats import GeotiffStats
+# from tacotoolbox.sample.extensions.stac import STAC
+# from tacotoolbox.sample.extensions.istac import ISTAC
+# from tacotoolbox.sample.extensions.scaling import Scaling
+# from tacotoolbox.sample.extensions.split import Split
 # from dataset.extensions import CustomMetadata
 
 from dataset.metadata import load_contexts
@@ -39,54 +42,29 @@ STRICT_SCHEMA = True
 
 
 # Sample builders - one function per file type
-def build_sample_rgb(ctx: dict) -> Sample:
-    """RGB image (3 bands, uint8)"""
-    sample = Sample(id="rgb", path=b"/path/to/rgb.tif")
+def build_sample_input(ctx: dict) -> Sample:
+    """Input data (e.g., satellite image, sensor data)."""
+    # MOCK: replace b"..." with real path, e.g.: path=ctx["image_path"].encode()
+    sample = Sample(id="input", path=b"mock input data")
     # sample.extend_with(Header())
     # sample.extend_with(GeotiffStats())
-    # sample.extend_with(CustomMetadata(region="north", quality_score=0.95))
+    # sample.extend_with(STAC(datetime="2024-01-15", geometry="POINT(0 0)"))
     return sample
 
 
-def build_sample_multiband(ctx: dict) -> Sample:
-    """Multispectral image (10 bands, uint16)"""
-    sample = Sample(id="multiband", path=b"/path/to/multiband.tif")
-    # sample.extend_with(Header())
-    # sample.extend_with(GeotiffStats())
-    return sample
-
-
-def build_sample_singleband(ctx: dict) -> Sample:
-    """Singleband float (DEM, indices, etc.)"""
-    sample = Sample(id="singleband", path=b"/path/to/singleband.tif")
-    # sample.extend_with(Header())
-    # sample.extend_with(GeotiffStats())
-    return sample
-
-
-def build_sample_mask_binary(ctx: dict) -> Sample:
-    """Binary mask (0/1)"""
-    sample = Sample(id="mask_binary", path=b"/path/to/mask_binary.tif")
+def build_sample_target(ctx: dict) -> Sample:
+    """Target data (e.g., label mask, ground truth)."""
+    # MOCK: replace b"..." with real path, e.g.: path=ctx["mask_path"].encode()
+    sample = Sample(id="target", path=b"mock target data")
     # sample.extend_with(Header())
     # sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1]))
     return sample
 
 
-def build_sample_mask_multiclass(ctx: dict) -> Sample:
-    """Multiclass mask (0-5)"""
-    sample = Sample(id="mask_multiclass", path=b"/path/to/mask_multiclass.tif")
-    # sample.extend_with(Header())
-    # sample.extend_with(GeotiffStats(categorical=True, class_values=[0, 1, 2, 3, 4, 5]))
-    return sample
-
-
 # Samples list - order matters for PIT schema consistency
 SAMPLES = [
-    build_sample_rgb,
-    build_sample_multiband,
-    build_sample_singleband,
-    build_sample_mask_binary,
-    build_sample_mask_multiclass,
+    build_sample_input,
+    build_sample_target,
 ]
 
 

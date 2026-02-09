@@ -10,12 +10,13 @@ Usage:
     python dataset/create.py
 """
 
+import json
 import re
 import shutil
 from pathlib import Path
 
 import tacotoolbox
-from tacotoolbox import create
+from tacotoolbox import create, generate_html, generate_markdown
 from dataset.config import BUILD_CONFIG, PARQUET_CONFIG
 from dataset.taco import create_taco
 from dataset.metadata import load_contexts
@@ -37,7 +38,6 @@ def clean_previous_outputs(output: str):
     parent_dir = output_path.parent
     base_stem = output_path.stem
 
-    # Remove suffix if present
     if base_stem.endswith(".tacozip"):
         base_stem = base_stem[:-9]
     elif base_stem.endswith(".zip"):
@@ -81,7 +81,7 @@ def clean_previous_outputs(output: str):
         removed.append(str(tacocat_path))
 
     # Documentation
-    for doc_file in ["index.html", "README.md"]:
+    for doc_file in ["index.html", "README.md", "COLLECTION.json"]:
         doc_path = parent_dir / doc_file
         if doc_path.exists() and doc_path.is_file():
             doc_path.unlink()
@@ -95,8 +95,6 @@ def clean_previous_outputs(output: str):
 
 def generate_documentation(output: str, config: dict):
     """Generate HTML and Markdown documentation from .tacocat/ or COLLECTION.json."""
-    from tacotoolbox import generate_html, generate_markdown
-    
     output_path = Path(output)
     parent_dir = output_path.parent
     
@@ -104,18 +102,15 @@ def generate_documentation(output: str, config: dict):
     
     if tacocat_dir.exists() and tacocat_dir.is_dir():
         input_path = tacocat_dir / "COLLECTION.json"
-        if not input_path.exists():
-            print(f"\nWARNING: {input_path} not found, skipping documentation generation")
-            return
     else:
         input_path = parent_dir / "COLLECTION.json"
-        if not input_path.exists():
-            print(f"\nWARNING: {input_path} not found, skipping documentation generation")
-            return
+    
+    if not input_path.exists():
+        print(f"\nWARNING: {input_path} not found, skipping documentation generation")
+        return
     
     print(f"\nGenerating documentation from {input_path}...")
     
-    # Extract doc config
     theme_color = config.get("theme_color", "#4CAF50")
     dataset_example_path = config.get("dataset_example_path")
     
@@ -128,9 +123,9 @@ def generate_documentation(output: str, config: dict):
             theme_color=theme_color,
             dataset_example_path=dataset_example_path,
         )
-        print("Generated index.html")
+        print("  Generated index.html")
     except Exception as e:
-        print(f"Failed to generate HTML: {e}")
+        print(f"  Failed to generate HTML: {e}")
     
     try:
         generate_markdown(
@@ -138,11 +133,18 @@ def generate_documentation(output: str, config: dict):
             output=parent_dir / "README.md",
             dataset_example_path=dataset_example_path,
         )
-        print("Generated README.md")
+        print("  Generated README.md")
     except Exception as e:
-        print(f"Failed to generate Markdown: {e}")
-    
-    print(f"\nDocumentation generated in {parent_dir}")
+        print(f"  Failed to generate Markdown: {e}")
+
+
+def write_collection_json(taco, parent_dir: Path):
+    """Write standalone COLLECTION.json for single-file outputs (no .tacocat/)."""
+    collection_json = taco.model_dump(exclude={'tortilla'}, mode='json')
+    collection_path = parent_dir / "COLLECTION.json"
+    with open(collection_path, 'w') as f:
+        json.dump(collection_json, f, indent=2, default=str)
+    print(f"  Created {collection_path}")
 
 
 def main():
@@ -155,7 +157,7 @@ def main():
     3. Build TACO object
     4. Validate schema (if enabled)
     5. Write to disk with create()
-    6. Auto-consolidate to .tacocat/ if multiple ZIPs (if enabled)
+    6. Generate COLLECTION.json if single file (no .tacocat/)
     7. Generate documentation (if enabled)
     """
     output = BUILD_CONFIG["output"]
@@ -167,7 +169,6 @@ def main():
     validate_schema = BUILD_CONFIG.get("validate_schema", True)
     level0_sample_limit = BUILD_CONFIG.get("level0_sample_limit")
 
-    # Enable/disable logging
     tacotoolbox.verbose(True)
 
     # Step 1: Clean previous outputs
@@ -179,88 +180,54 @@ def main():
     print("\nLoading contexts...")
     contexts = load_contexts(limit=level0_sample_limit)
     print(f"Loaded {len(contexts)} contexts")
-    
     if level0_sample_limit:
         print(f"(Limited to {level0_sample_limit} for testing)")
 
     # Step 3: Build TACO object
     print("\nBuilding TACO object...")
-    try:
-        taco = create_taco(contexts=contexts)
-    except Exception as e:
-        print(f"\nERROR: Failed to build TACO: {e}")
-        raise
+    taco = create_taco(contexts=contexts)
 
     # Step 4: Validate schema
     if validate_schema:
         print("\nValidating schema...")
-        try:
-            # Check that all samples have consistent schema
-            taco.tortilla.export_metadata()
-            print("✓ Schema validation passed")
-        except Exception as e:
-            print(f"✗ Schema validation failed: {e}")
-            raise
+        taco.tortilla.export_metadata()
+        print("Schema validation passed")
 
     # Step 5: Write to disk
     print(f"\nWriting TACO in {output_format.upper()} format to {output}...")
-    
-    try:
-        paths = create(
-            taco=taco,
-            output=output,
-            output_format=output_format,
-            split_size=split_size,
-            group_by=group_by,
-            consolidate=consolidate,
-            **PARQUET_CONFIG
-        )
-    except Exception as e:
-        print(f"\nERROR: Failed to create TACO: {e}")
-        raise
+    paths = create(
+        taco=taco,
+        output=output,
+        output_format=output_format,
+        split_size=split_size,
+        group_by=group_by,
+        consolidate=consolidate,
+        **PARQUET_CONFIG
+    )
     
     print(f"\nCreated {len(paths)} file(s)")
     for path in paths:
         print(f"  - {path}")
-    
-    # Step 6: Generate COLLECTION.json (if single file, not consolidated)
+
+    # Step 6: COLLECTION.json
     output_path = Path(output)
     parent_dir = output_path.parent
     tacocat_path = parent_dir / ".tacocat"
     
     if tacocat_path.exists() and tacocat_path.is_dir():
-        # Multiple ZIPs consolidated - COLLECTION.json should be inside .tacocat/
-        collection_in_tacocat = tacocat_path / "COLLECTION.json"
-        if collection_in_tacocat.exists():
-            print(f"\nConsolidated metadata in {tacocat_path}")
-        else:
-            print(f"\nWARNING: Expected {collection_in_tacocat} but not found")
-            print("Consolidation may have failed - check warnings above")
+        print(f"\nConsolidated metadata in {tacocat_path}")
     else:
-        # Single file - generate COLLECTION.json in parent dir
         print(f"\nGenerating COLLECTION.json in {parent_dir}")
-        collection_path = parent_dir / "COLLECTION.json"
-        
-        # Export COLLECTION from Taco object (exclude tortilla)
-        collection_json = taco.model_dump(
-            exclude={'tortilla'},
-            mode='json'
-        )
-        
-        import json
-        with open(collection_path, 'w') as f:
-            json.dump(collection_json, f, indent=2, default=str)
-        
-        print(f"Created {collection_path}")
+        write_collection_json(taco, parent_dir)
 
     # Step 7: Generate documentation
     if BUILD_CONFIG.get("generate_docs", True):
         generate_documentation(output, BUILD_CONFIG)
 
-    print("\n✓ Build completed successfully!")
-    print(f"\nDataset: {taco.id} v{taco.dataset_version}")
-    print(f"Samples: {len(taco.tortilla.samples)}")
-    print(f"Output:  {output}")
+    print(f"\nBuild completed successfully!")
+    print(f"  Dataset: {taco.id} v{taco.dataset_version}")
+    print(f"  Samples: {len(taco.tortilla.samples)}")
+    print(f"  Output:  {output}")
 
 
 if __name__ == "__main__":

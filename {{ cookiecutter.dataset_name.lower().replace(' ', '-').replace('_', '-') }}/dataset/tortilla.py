@@ -7,7 +7,6 @@ This module creates the root Tortilla by:
 
 Tortilla-level extensions add metadata columns computed across ALL samples:
 - MajorTOM: spherical grid codes (requires stac:centroid)
-- SpatialGrouping: groups by spatial proximity (requires stac:centroid)
 - GeoEnrich: Earth Engine data enrichment (requires stac:centroid)
 - Custom extensions: any computed metadata
 
@@ -17,7 +16,6 @@ Run directly to test:
 
 from tacotoolbox.datamodel import Tortilla
 # from tacotoolbox.tortilla.extensions.majortom import MajorTOM
-# from tacotoolbox.tortilla.extensions.spatial_grouping import SpatialGrouping
 # from tacotoolbox.tortilla.extensions.geoenrich import GeoEnrich
 # from dataset.extensions import SpatialCoverage
 
@@ -53,12 +51,12 @@ def create_tortilla(contexts: list[dict] | None = None, parallel: bool | None = 
     root_tortilla = build_level0(contexts, parallel=parallel, workers=workers)
     
     # Tortilla extensions - computed metadata across all samples
+    # These add columns to the metadata table (one value per sample).
     # Uncomment extensions as needed:
     
-    # root_tortilla.extend_with(SpatialCoverage())
     # root_tortilla.extend_with(MajorTOM(dist_km=100))
-    # root_tortilla.extend_with(SpatialGrouping(target_count=1000))
     # root_tortilla.extend_with(GeoEnrich(variables=["elevation", "temperature"]))
+    # root_tortilla.extend_with(SpatialCoverage())
     
     return root_tortilla
 

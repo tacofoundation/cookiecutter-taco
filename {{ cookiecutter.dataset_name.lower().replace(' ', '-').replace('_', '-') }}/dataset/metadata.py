@@ -10,7 +10,7 @@ A "context" is a dict containing all information needed to build one root sample
 How contexts flow through TACO:
 1. load_contexts() returns list[dict]
 2. level0.build() iterates over all contexts
-3. Each context is passed to level1.build() → level2.build() → ... → leaf level
+3. Each context is passed to level1.build() -> level2.build() -> ... -> leaf level
 4. Levels use context fields to locate files, apply extensions, build samples
 
 The limit parameter enables testing with a subset of your data.
@@ -24,18 +24,6 @@ Usage:
     # Load subset for testing
     contexts = load_contexts(limit=10)
 """
-
-import tacoreader
-if tacoreader.__version__ < "2.0.0":
-    raise ImportError(
-        f"tacoreader >= 2.0.0 required (found {tacoreader.__version__}). "
-        "Run: pip install -U tacoreader"
-    )
-
-from dataset.config import DATAFRAME_BACKEND
-
-# Configure DataFrame backend globally
-tacoreader.use(DATAFRAME_BACKEND)
 
 
 def load_contexts(limit: float | int | None = None) -> list[dict]:
@@ -63,7 +51,7 @@ def load_contexts(limit: float | int | None = None) -> list[dict]:
         - "region": str - geographic region
         - "split": str - train/val/test partition
         - Any other fields your levels need
- 
+
     Example return:
         [
             {
@@ -80,60 +68,54 @@ def load_contexts(limit: float | int | None = None) -> list[dict]:
     # REPLACE THIS SECTION WITH YOUR DATA LOADING
     # 
     # Example 1: Load from CSV file
-    # import polars as pl
-    # df = pl.read_csv("metadata.csv")
-    # if limit is not None:
-    #     if isinstance(limit, float):
-    #         count = int(len(df) * limit) or 1
-    #         df = df.head(count)
-    #     else:
-    #         df = df.head(limit)
-    # return df.to_dicts()
-
+    # import pandas as pd
+    # df = pd.read_csv("metadata.csv")
+    # contexts = df.to_dict("records")
+    #
     # Example 2: Load from Parquet file
-    # import polars as pl
-    # df = pl.read_parquet("metadata.parquet")
-    # if limit is not None:
-    #     if isinstance(limit, float):
-    #         count = int(len(df) * limit) or 1
-    #         df = df.head(count)
-    #     else:
-    #         df = df.head(limit)
-    # return df.to_dicts()
-
+    # import pyarrow.parquet as pq
+    # table = pq.read_table("metadata.parquet")
+    # contexts = table.to_pylist()
+    #
     # Example 3: Scan filesystem
     # from pathlib import Path
-    # contexts = []
-    # for folder in sorted(Path("data").iterdir()):
-    #     contexts.append({
-    #         "id": folder.name,
-    #         "path": str(folder).encode()
-    #     })
-    # if limit is not None:
-    #     if isinstance(limit, float):
-    #         count = int(len(contexts) * limit) or 1
-    #         return contexts[:count]
-    #     else:
-    #         return contexts[:limit]
+    # contexts = [
+    #     {"id": folder.name, "path": str(folder).encode()}
+    #     for folder in sorted(Path("data").iterdir())
+    # ]
+    #
+    # Example 4: Load from existing TACO dataset (requires tacoreader)
+    # import tacoreader
+    # ds = tacoreader.load("source.tacozip")
+    # contexts = ds.data.to_pylist()
+    #
+    # After loading, apply limit:
+    # contexts = _apply_limit(contexts, limit)
     # return contexts
 
-    # MOCK DATA (delete this when you add your implementation)
-
+    # MOCK DATA (replace with your implementation)
     contexts = [
-        {"id": "sample01", "path": b"/mock/sample01"},
-        {"id": "sample02", "path": b"/mock/sample02"},
-        {"id": "sample03", "path": b"/mock/sample03"},
-        {"id": "sample04", "path": b"/mock/sample04"},
-        {"id": "sample05", "path": b"/mock/sample05"},
+        {"id": "sample01"},
+        {"id": "sample02"},
+        {"id": "sample03"},
     ]
     
+    return _apply_limit(contexts, limit)
+
+
+def _apply_limit(contexts: list[dict], limit: float | int | None = None) -> list[dict]:
+    """Apply limit to a list of contexts.
+    
+    Args:
+        contexts: Full list of context dicts
+        limit: None (all), float 0.0-1.0 (percentage), or int (exact count)
+    """
     if limit is None:
         return contexts
-    elif isinstance(limit, float):
+    if isinstance(limit, float):
         count = int(len(contexts) * limit) or 1
         return contexts[:count]
-    else:
-        return contexts[:limit]
+    return contexts[:limit]
 
 
 if __name__ == "__main__":

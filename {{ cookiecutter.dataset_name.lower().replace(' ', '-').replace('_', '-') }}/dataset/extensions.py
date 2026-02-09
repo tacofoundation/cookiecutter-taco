@@ -13,9 +13,9 @@ Extensions add metadata to your TACO dataset at different levels:
    Applied in taco.py: taco.extend_with(MyExtension())
 
 Each extension must implement 3 methods:
-- get_schema() -> defines the PyArrow schema (field names + types)
-- get_field_descriptions() -> human-readable description of each field
-- _compute() -> returns PyArrow Table with the actual metadata values
+- get_schema() -> pa.Schema with field names + types
+- get_field_descriptions() -> dict mapping field name to description
+- _compute() -> pa.Table with the actual metadata values
 """
 
 import pyarrow as pa
@@ -37,18 +37,17 @@ class CustomMetadata(SampleExtension):
     quality_score: float
     flag: str | None = None
 
-    def get_schema(self) -> dict[str, pa.DataType]:
+    def get_schema(self) -> pa.Schema:
         """
         Define the PyArrow schema for this extension.
         
-        Returns dict mapping field names to PyArrow types.
         Field names should use prefix pattern: "namespace:fieldname"
         """
-        return {
-            "custom:region": pa.string(),
-            "custom:quality_score": pa.float32(),
-            "custom:flag": pa.string()
-        }
+        return pa.schema([
+            pa.field("custom:region", pa.string()),
+            pa.field("custom:quality_score", pa.float32()),
+            pa.field("custom:flag", pa.string()),
+        ])
 
     def get_field_descriptions(self) -> dict[str, str]:
         """
@@ -59,7 +58,7 @@ class CustomMetadata(SampleExtension):
         return {
             "custom:region": "Geographic region",
             "custom:quality_score": "Quality assessment score (0-1)",
-            "custom:flag": "Optional processing flag"
+            "custom:flag": "Optional processing flag",
         }
 
     def _compute(self, sample) -> pa.Table:
@@ -72,19 +71,14 @@ class CustomMetadata(SampleExtension):
         Returns:
             PyArrow Table with one row containing the metadata
         """
-        # Create schema from get_schema()
-        schema = pa.schema([
-            (name, dtype) for name, dtype in self.get_schema().items()
-        ])
-        
-        # Build data dict matching the schema
-        data = {
-            "custom:region": [self.region],
-            "custom:quality_score": [self.quality_score],
-            "custom:flag": [self.flag]
-        }
-        
-        return pa.table(data, schema=schema)
+        return pa.table(
+            {
+                "custom:region": [self.region],
+                "custom:quality_score": [self.quality_score],
+                "custom:flag": [self.flag],
+            },
+            schema=self.get_schema(),
+        )
 
 
 class GeometryExtension(SampleExtension):
@@ -96,8 +90,8 @@ class GeometryExtension(SampleExtension):
 
     wkt: str  # Input as WKT string
     
-    def get_schema(self) -> dict[str, pa.DataType]:
-        return {"geometry:wkb": pa.binary()}
+    def get_schema(self) -> pa.Schema:
+        return pa.schema([pa.field("geometry:wkb", pa.binary())])
 
     def get_field_descriptions(self) -> dict[str, str]:
         return {"geometry:wkb": "Geometry in WKB binary format"}
@@ -105,13 +99,11 @@ class GeometryExtension(SampleExtension):
     def _compute(self, sample) -> pa.Table:
         import geopandas as gpd
         
-        # Convert WKT string to WKB binary
         wkb = gpd.GeoSeries.from_wkt([self.wkt]).to_wkb()[0]
-        
-        schema = pa.schema([("geometry:wkb", pa.binary())])
-        data = {"geometry:wkb": [wkb]}
-        
-        return pa.table(data, schema=schema)
+        return pa.table(
+            {"geometry:wkb": [wkb]},
+            schema=self.get_schema(),
+        )
 
 
 class SpatialCoverage(TortillaExtension):
@@ -122,47 +114,43 @@ class SpatialCoverage(TortillaExtension):
     They compute metadata from the entire tortilla.
     """
     
-    def get_schema(self) -> dict[str, pa.DataType]:
-        return {
-            "coverage:n_samples": pa.int64(),
-            "coverage:total_area": pa.float32()
-        }
+    def get_schema(self) -> pa.Schema:
+        return pa.schema([
+            pa.field("coverage:n_samples", pa.int64()),
+            pa.field("coverage:total_area", pa.float32()),
+        ])
 
     def get_field_descriptions(self) -> dict[str, str]:
         return {
             "coverage:n_samples": "Total number of samples",
-            "coverage:total_area": "Total coverage area in km²"
+            "coverage:total_area": "Total coverage area in km²",
         }
 
     def _compute(self, tortilla) -> pa.Table:
         """
         Compute metadata from all samples in the tortilla.
         
+        IMPORTANT: Must return a table with N rows (one per sample),
+        not a single-row summary. TortillaExtensions add columns to
+        the existing metadata table.
+        
         Args:
             tortilla: The Tortilla object containing all samples
-            
-        Returns:
-            PyArrow Table with aggregated statistics
         """
         n_samples = len(tortilla.samples)
         
-        # Example: compute total area from sample geometries
+        # Example: same value for all rows (broadcast)
+        # For per-sample values, compute individually
         total_area = 0.0
         # TODO: Extract geometries from samples and sum areas
-        # for sample in tortilla.samples:
-        #     if hasattr(sample, 'geometry'):
-        #         total_area += sample.geometry.area
-        
-        schema = pa.schema([
-            (name, dtype) for name, dtype in self.get_schema().items()
-        ])
-        
-        data = {
-            "coverage:n_samples": [n_samples],
-            "coverage:total_area": [total_area]
-        }
-        
-        return pa.table(data, schema=schema)
+
+        return pa.table(
+            {
+                "coverage:n_samples": [n_samples] * n_samples,
+                "coverage:total_area": [total_area] * n_samples,
+            },
+            schema=self.get_schema(),
+        )
 
 
 class DatasetStats(TacoExtension):
@@ -170,18 +158,19 @@ class DatasetStats(TacoExtension):
     Example TacoExtension for dataset-wide metadata.
     
     TacoExtensions compute metadata for the entire TACO dataset.
+    Must return a single-row table.
     """
     
-    def get_schema(self) -> dict[str, pa.DataType]:
-        return {
-            "stats:creation_date": pa.string(),
-            "stats:n_root_samples": pa.int64()
-        }
+    def get_schema(self) -> pa.Schema:
+        return pa.schema([
+            pa.field("stats:creation_date", pa.string()),
+            pa.field("stats:n_root_samples", pa.int64()),
+        ])
 
     def get_field_descriptions(self) -> dict[str, str]:
         return {
             "stats:creation_date": "ISO timestamp when dataset was created",
-            "stats:n_root_samples": "Number of root-level samples"
+            "stats:n_root_samples": "Number of root-level samples",
         }
 
     def _compute(self, taco) -> pa.Table:
@@ -192,20 +181,14 @@ class DatasetStats(TacoExtension):
             taco: The complete Taco object
             
         Returns:
-            PyArrow Table with dataset statistics
+            PyArrow Table with ONE row containing dataset statistics
         """
         from datetime import datetime
         
-        creation_date = datetime.now().isoformat()
-        n_root = len(taco.tortilla.samples)
-        
-        schema = pa.schema([
-            (name, dtype) for name, dtype in self.get_schema().items()
-        ])
-        
-        data = {
-            "stats:creation_date": [creation_date],
-            "stats:n_root_samples": [n_root]
-        }
-        
-        return pa.table(data, schema=schema)
+        return pa.table(
+            {
+                "stats:creation_date": [datetime.now().isoformat()],
+                "stats:n_root_samples": [len(taco.tortilla.samples)],
+            },
+            schema=self.get_schema(),
+        )

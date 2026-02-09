@@ -6,13 +6,14 @@ DO NOT EDIT the COLLECTION dictionary at the bottom.
 """
 
 import tacotoolbox
-if tacotoolbox.__version__ < "0.22.0":
+if tacotoolbox.__version__ < "0.25.0":
     raise ImportError(
-        f"tacotoolbox >= 0.22.0 required (found {tacotoolbox.__version__}). "
+        f"tacotoolbox >= 0.25.0 required (found {tacotoolbox.__version__}). "
         "Run: pip install -U tacotoolbox"
     )
 
-from tacotoolbox.datamodel.taco import Provider, Curator, Publication, Publications
+from tacotoolbox.taco.datamodel import Provider, Curator
+from tacotoolbox.taco.extensions.scientific import Publication, Publications
 
 # Collection metadata
 COLLECTION_ID = "{{ cookiecutter.dataset_name.lower().replace(' ', '-').replace('_', '-') }}"
@@ -48,20 +49,17 @@ COLLECTION_CURATORS = None
 # )
 COLLECTION_PUBLICATIONS = None
 
-# DataFrame backend for testing/debugging output
-DATAFRAME_BACKEND = "pandas"  # "pyarrow", "polars", "pandas"
-
 # Parallel processing
 WORKERS = 4
-LEVEL0_PARALLEL = True
+LEVEL0_PARALLEL = False  # Set True when using real file paths (not bytes)
 LEVEL0_SAMPLE_LIMIT = None  # None = all samples, set number for debugging
 
 # Output settings
 OUTPUT_PATH = "output.tacozip"
-OUTPUT_FORMAT = "auto"  # "auto", "zip", or "folder"
-SPLIT_SIZE = "4GB"      # Max size per ZIP file, None = no splitting
-GROUP_BY = None         # Column(s) to group by, None = no grouping
-CONSOLIDATE = True      # Auto-create .tacocat/ when multiple ZIPs generated
+OUTPUT_FORMAT = "auto"      # "auto", "zip", or "folder"
+SPLIT_SIZE = "4GB"          # Max size per ZIP file, None = no splitting
+GROUP_BY = None             # Column(s) to group by, None = no grouping
+CONSOLIDATE = True          # Auto-create .tacocat/ when multiple ZIPs generated
 
 # Build options
 CLEAN_PREVIOUS_OUTPUTS = True
@@ -69,10 +67,10 @@ VALIDATE_SCHEMA = True
 
 # Documentation
 GENERATE_DOCS = True
-DOWNLOAD_BASE_URL = None  # URL prefix for download links, None if not public
+DOWNLOAD_BASE_URL = None    # URL prefix for download links, None if not public
 CATALOGUE_URL = "https://tacofoundation.github.io/catalogue"
-THEME_COLOR = "#4CAF50"   # Primary color: green default, try "#3498db" for blue
-DATASET_EXAMPLE_PATH = None  # Path for code examples, None = auto (uses COLLECTION_ID.tacozip)
+THEME_COLOR = "#4CAF50"     # Primary color: green default, try "#3498db" for blue
+DATASET_EXAMPLE_PATH = None # Path for code examples, None = auto (uses COLLECTION_ID.tacozip)
 
 # Parquet configuration (passed to create() as **kwargs)
 PARQUET_ROW_GROUP_SIZE = 122880

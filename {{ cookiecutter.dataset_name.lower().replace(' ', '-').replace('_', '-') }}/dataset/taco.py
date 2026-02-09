@@ -14,7 +14,10 @@ Run directly to preview COLLECTION.json before building:
 import json
 
 from tacotoolbox.taco.datamodel import Taco
-# from tacotoolbox.taco.extensions.publications import Publications, Publication
+# from tacotoolbox.taco.extensions.scientific import Publication, Publications
+# from tacotoolbox.taco.extensions.labels import Labels, LabelClass
+# from tacotoolbox.taco.extensions.opticaldata import OpticalData, SpectralBand
+# from tacotoolbox.taco.extensions.split import SplitStrategy, SplitStrategyType
 # from dataset.extensions import DatasetStats
 
 from dataset.config import COLLECTION, LEVEL0_SAMPLE_LIMIT
@@ -45,12 +48,24 @@ def create_taco(contexts: list[dict] | None = None) -> Taco:
     # Uncomment extensions as needed:
     
     # taco.extend_with(DatasetStats())
+    
     # taco.extend_with(Publications(publications=[
     #     Publication(
     #         doi="10.1038/s41586-021-03819-2",
     #         citation="Smith et al. (2023). Dataset Name. Nature.",
-    #         summary="Introduces dataset methodology"
+    #         summary="Introduces dataset methodology",
     #     )
+    # ]))
+    
+    # taco.extend_with(Labels(classes=[
+    #     LabelClass(name="water", value=0, description="Water bodies"),
+    #     LabelClass(name="land", value=1, description="Land surface"),
+    # ]))
+    
+    # taco.extend_with(OpticalData(bands=[
+    #     SpectralBand(name="B02", common_name="blue", center_wavelength=0.49),
+    #     SpectralBand(name="B03", common_name="green", center_wavelength=0.56),
+    #     SpectralBand(name="B04", common_name="red", center_wavelength=0.665),
     # ]))
 
     return taco
